@@ -27,6 +27,7 @@ func GigaTimer(DurOfBreak int, DurOfWork int, DurOfPomidorka int) {
 			fmt.Println("Break")
 			BreakTimer.Reset(time.Duration(buffer) * time.Second)
 			go Output(buffer)
+			NumberOfSector += 1
 		case <-BreakTimer.C:
 			fmt.Println("Work")
 			PomidorkaTimer.Reset(time.Duration(DurOfPomidorka) * time.Second)
