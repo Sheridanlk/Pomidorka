@@ -6,22 +6,37 @@ import (
 	"time"
 )
 
-func TimeSegment(DurOfPause int, Iteration int, MaxNumOfIterations int) uint {
-	DurOfPomidorka := 10
-	buffer := DurOfPause
-	if Iteration%4 == 0 && Iteration != 0 {
-		buffer = 5 * DurOfPause
-	}
-	PomidorkaTimer := time.NewTimer(time.Duration(DurOfPomidorka * int(time.Second)))
-	PomidorkaTimerAndBreakTimer := time.NewTimer(time.Duration((buffer + DurOfPomidorka) * int(time.Second)))
-	fmt.Println("Work")
-	Output(DurOfPomidorka)
+func GigaTimer(DurOfBreak int, DurOfWork int, DurOfPomidorka int) {
+	WorkTimer := time.NewTimer(time.Duration(DurOfWork) * time.Second)
+	PomidorkaTimer := time.NewTimer(10 * time.Second)
 
-	<-PomidorkaTimer.C
-	fmt.Println("Break")
-	Output(buffer)
-	<-PomidorkaTimerAndBreakTimer.C
-	return TimeSegment(DurOfPause, Iteration+1, MaxNumOfIterations)
+	fmt.Println("Work")
+	go Output(DurOfPomidorka)
+
+	BreakTimer := time.NewTimer(time.Duration(DurOfBreak))
+	BreakTimer.Stop()
+
+	NumberOfSector := 1
+	for {
+		select {
+		case <-PomidorkaTimer.C:
+			buffer := DurOfBreak
+			if NumberOfSector%4 == 0 {
+				buffer = DurOfBreak * 5
+			}
+			fmt.Println("Break")
+			BreakTimer.Reset(time.Duration(buffer) * time.Second)
+			go Output(buffer)
+		case <-BreakTimer.C:
+			fmt.Println("Work")
+			PomidorkaTimer.Reset(time.Duration(DurOfPomidorka) * time.Second)
+			go Output(DurOfPomidorka)
+		case <-WorkTimer.C:
+			fmt.Println("Time is out")
+			return
+		}
+
+	}
 
 }
 
@@ -31,11 +46,11 @@ func findTimeDuration(hrs, min, sec int) int {
 }
 
 func Output(TimeDuration int) {
-	tick := time.Tick(time.Second)
+	t := time.Tick(time.Second)
 	for TimeDuration != 0 {
-		<-tick
 		fmt.Printf("%d : %d : %d \n", TimeDuration/3600, (TimeDuration-(TimeDuration/3600)*3600-TimeDuration%60)/60, TimeDuration%60)
 		TimeDuration -= 1
+		<-t
 	}
 }
 
@@ -60,13 +75,8 @@ func main() {
 
 	WorkTimeDuration := findTimeDuration(wrkhrs, wrkmin, wrksec)
 	BreakTimeDuration := findTimeDuration(brkhrs, brkmin, brksec)
-	numberOfSector := WorkTimeDuration / (BreakTimeDuration + 10)
 
-	timer1 := time.NewTimer(time.Duration(WorkTimeDuration * int(time.Second)))
-	go TimeSegment(BreakTimeDuration, 0, numberOfSector)
-
-	<-timer1.C
-	fmt.Println("Time end")
-	return
+	const DurOfPomidorka int = 10
+	GigaTimer(BreakTimeDuration, WorkTimeDuration, int(DurOfPomidorka))
 
 }
