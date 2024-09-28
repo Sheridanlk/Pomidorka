@@ -6,32 +6,36 @@ import (
 	"time"
 )
 
-func GigaTimer(DurOfBreak int, DurOfWork int, DurOfPomidorka int) {
+func GigaTimer(DurOfBreak, DurOfWork time.Duration, DurOfPomidorka int) {
 	WorkTimer := time.NewTimer(time.Duration(DurOfWork) * time.Second)
-	PomidorkaTimer := time.NewTimer(10 * time.Second)
+	SegmentTimer := time.NewTimer(time.Duration(DurOfPomidorka) * time.Second)
 
 	fmt.Println("Work")
 	go Output(DurOfPomidorka)
 
-	BreakTimer := time.NewTimer(time.Duration(DurOfBreak))
-	BreakTimer.Stop()
-
 	NumberOfSector := 1
+	IsWorkTimer := true
 	for {
 		select {
-		case <-PomidorkaTimer.C:
-			buffer := DurOfBreak
-			if NumberOfSector%4 == 0 {
-				buffer = DurOfBreak * 5
+		case <-SegmentTimer.C:
+			if IsWorkTimer {
+				fmt.Println("Break")
+				if NumberOfSector%4 == 0 {
+					SegmentTimer.Reset(time.Duration(DurOfBreak*5) * time.Second)
+					go Output(DurOfBreak * 5)
+				} else {
+					SegmentTimer.Reset(time.Duration(DurOfBreak) * time.Second)
+					go Output(DurOfBreak)
+				}
+				NumberOfSector += 1
+				IsWorkTimer = false
+			} else {
+				fmt.Println("Work")
+				SegmentTimer.Reset(time.Duration(DurOfPomidorka) * time.Second)
+				go Output(DurOfPomidorka)
+				IsWorkTimer = true
 			}
-			fmt.Println("Break")
-			BreakTimer.Reset(time.Duration(buffer) * time.Second)
-			go Output(buffer)
-			NumberOfSector += 1
-		case <-BreakTimer.C:
-			fmt.Println("Work")
-			PomidorkaTimer.Reset(time.Duration(DurOfPomidorka) * time.Second)
-			go Output(DurOfPomidorka)
+
 		case <-WorkTimer.C:
 			fmt.Println("Time is out")
 			return
@@ -41,8 +45,13 @@ func GigaTimer(DurOfBreak int, DurOfWork int, DurOfPomidorka int) {
 
 }
 
-func findTimeDuration(hrs, min, sec int) int {
-	return hrs*3600 + min*60 + sec
+func findTimeDuration(StringTime string) time.Duration {
+	time, err := time.ParseDuration(StringTime)
+	if err != nil {
+		fmt.Println("Error", err)
+		return 0
+	}
+	return time
 
 }
 
@@ -56,28 +65,14 @@ func Output(TimeDuration int) {
 }
 
 func main() {
-	var wrkmin, wrksec, wrkhrs int
-	fmt.Println("WORK TIME:")
-	fmt.Print("Type hours: ")
-	fmt.Fscan(os.Stdin, &wrkhrs)
-	fmt.Print("Type min: ")
-	fmt.Fscan(os.Stdin, &wrkmin)
-	fmt.Print("Type seconds: ")
-	fmt.Fscan(os.Stdin, &wrksec)
+	var WorkTime, BreakTime string
+	fmt.Println("Set work time:")
+	fmt.Fscan(os.Stdin, &WorkTime)
 
-	var brkmin, brksec, brkhrs int
-	fmt.Println("BREAK TIME:")
-	fmt.Print("Type hours: ")
-	fmt.Fscan(os.Stdin, &brkhrs)
-	fmt.Print("Type min: ")
-	fmt.Fscan(os.Stdin, &brkmin)
-	fmt.Print("Type seconds: ")
-	fmt.Fscan(os.Stdin, &brksec)
-
-	WorkTimeDuration := findTimeDuration(wrkhrs, wrkmin, wrksec)
-	BreakTimeDuration := findTimeDuration(brkhrs, brkmin, brksec)
+	fmt.Println("Set break time:")
+	fmt.Fscan(os.Stdin, &BreakTime)
 
 	const DurOfPomidorka int = 10
-	GigaTimer(BreakTimeDuration, WorkTimeDuration, int(DurOfPomidorka))
+	GigaTimer(int(findTimeDuration(WorkTime)), int(findTimeDuration(BreakTime)), int(DurOfPomidorka))
 
 }
