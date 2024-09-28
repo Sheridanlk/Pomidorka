@@ -1,39 +1,38 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"time"
 )
 
-func GigaTimer(DurOfBreak int, DurOfWork int, DurOfPomidorka int) {
-	WorkTimer := time.NewTimer(time.Duration(DurOfWork) * time.Second)
-	PomidorkaTimer := time.NewTimer(10 * time.Second)
+func GigaTimer(ctx context.Context, DurOfBreak int, DurOfWork int, DurOfPomidorka int) {
 
-	fmt.Println("Work")
-	go Output(DurOfPomidorka)
 
-	BreakTimer := time.NewTimer(time.Duration(DurOfBreak))
-	BreakTimer.Stop()
+	mainTimer := time.Timer{}
+	secondTicker := time.NewTicker(1 * time.Second)
 
-	NumberOfSector := 1
+	numerOfIntervals := 10
+	intervals := make([]time.Duration, numerOfIntervals)
+
+	i := 0
+	numberOfSecons := time.Duration(0)
 	for {
 		select {
-		case <-PomidorkaTimer.C:
-			buffer := DurOfBreak
-			if NumberOfSector%4 == 0 {
-				buffer = DurOfBreak * 5
-			}
-			fmt.Println("Break")
-			BreakTimer.Reset(time.Duration(buffer) * time.Second)
-			go Output(buffer)
-			NumberOfSector += 1
-		case <-BreakTimer.C:
-			fmt.Println("Work")
-			PomidorkaTimer.Reset(time.Duration(DurOfPomidorka) * time.Second)
-			go Output(DurOfPomidorka)
-		case <-WorkTimer.C:
-			fmt.Println("Time is out")
+		case <-mainTimer.C:
+			
+			mainTimer.Reset(intervals[i])
+			i++
+			numberOfSecons = 0
+		case <-secondTicker.C:
+			passed := numberOfSecons*time.Second
+			fmt.Printf("%s / %s\n", passed, intervals[i])
+			numberOfSecons++
+		case <-ctx.Done():
+			mainTimer.Stop()
+			secondTicker.Stop()
 			return
 		}
 
@@ -78,6 +77,13 @@ func main() {
 	BreakTimeDuration := findTimeDuration(brkhrs, brkmin, brksec)
 
 	const DurOfPomidorka int = 10
-	GigaTimer(BreakTimeDuration, WorkTimeDuration, int(DurOfPomidorka))
+	ctx := context.Background()
+//	contectWithTimeout, cancelFunc := context.WithTimeout(ctx, 5 * time.Second)
+//	defer cancelFunc()
 
+	// signal.Notify()
+	signalCtx, cancelFunc := signal.NotifyContext(ctx, os.Interrupt)
+	defer cancelFunc()
+
+	GigaTimer(signalCtx, BreakTimeDuration, WorkTimeDuration, int(DurOfPomidorka))
 }
