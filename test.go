@@ -1,43 +1,56 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
 )
 
-func GigaTimer(DurOfBreak, DurOfWork time.Duration, DurOfPomidorka int) {
-	WorkTimer := time.NewTimer(time.Duration(DurOfWork) * time.Second)
-	SegmentTimer := time.NewTimer(time.Duration(DurOfPomidorka) * time.Second)
+func GigaTimer(ctx context.Context, DurOfBreak int, DurOfWork int, DurOfPomidorka int) {
+	intervals := make([]time.Duration, 0)
+	numerOfIntervals := 0
+	for DurOfWork > 0 {
+		if (numerOfIntervals+1)%2 == 0 {
+			if (numerOfIntervals+1)%8 == 0 {
+				DurOfWork -= DurOfBreak * 5
+				intervals = append(intervals, time.Duration(DurOfBreak*5))
 
-	fmt.Println("Work")
-	go Output(DurOfPomidorka)
+			} else {
+				DurOfWork -= DurOfBreak
+				intervals = append(intervals, time.Duration(DurOfBreak))
 
-	NumberOfSector := 1
-	IsWorkTimer := true
+			}
+		} else {
+			DurOfWork -= DurOfPomidorka
+			intervals = append(intervals, time.Duration(DurOfPomidorka))
+
+		}
+		numerOfIntervals += 1
+	}
+
+	mainTimer := time.NewTimer(time.Duration(0) * time.Second)
+	secondTicker := time.NewTicker(1 * time.Second)
+	i := 0
+	numberOfSecons := time.Duration(0)
 	for {
 		select {
-		case <-SegmentTimer.C:
-			if IsWorkTimer {
-				fmt.Println("Break")
-				if NumberOfSector%4 == 0 {
-					SegmentTimer.Reset(time.Duration(DurOfBreak*5) * time.Second)
-					go Output(DurOfBreak * 5)
-				} else {
-					SegmentTimer.Reset(time.Duration(DurOfBreak) * time.Second)
-					go Output(DurOfBreak)
-				}
-				NumberOfSector += 1
-				IsWorkTimer = false
+		case <-mainTimer.C:
+			if (i+1)%2 == 0 {
+				fmt.Println("Break: ")
 			} else {
-				fmt.Println("Work")
-				SegmentTimer.Reset(time.Duration(DurOfPomidorka) * time.Second)
-				go Output(DurOfPomidorka)
-				IsWorkTimer = true
+				fmt.Println("Work: ")
 			}
-
-		case <-WorkTimer.C:
-			fmt.Println("Time is out")
+			mainTimer.Reset(intervals[i])
+			numberOfSecons = time.Duration(0)
+			i++
+		case <-secondTicker.C:
+			passed := numberOfSecons * time.Second
+			fmt.Printf("%s / %s\n", passed, intervals[i-1])
+			numberOfSecons++
+		case <-ctx.Done():
+			mainTimer.Stop()
+			secondTicker.Stop()
 			return
 		}
 
@@ -55,15 +68,6 @@ func findTimeDuration(StringTime string) time.Duration {
 
 }
 
-func Output(TimeDuration int) {
-	t := time.Tick(time.Second)
-	for TimeDuration != 0 {
-		fmt.Printf("%d : %d : %d \n", TimeDuration/3600, (TimeDuration-(TimeDuration/3600)*3600-TimeDuration%60)/60, TimeDuration%60)
-		TimeDuration -= 1
-		<-t
-	}
-}
-
 func main() {
 	var WorkTime, BreakTime string
 	fmt.Println("Set work time:")
@@ -71,8 +75,15 @@ func main() {
 
 	fmt.Println("Set break time:")
 	fmt.Fscan(os.Stdin, &BreakTime)
+	const DurOfPomidorka time.Duration = 10 * time.Second
+	ctx := context.Background()
 
-	const DurOfPomidorka int = 10
-	GigaTimer(int(findTimeDuration(WorkTime)), int(findTimeDuration(BreakTime)), int(DurOfPomidorka))
+	contectWithTimeout, cancelFunc := context.WithTimeout(ctx, findTimeDuration(WorkTime))
+	defer cancelFunc()
+
+	// signalCtx, cancelFunc := signal.NotifyContext(ctx, os.Interrupt)
+	// defer cancelFunc()
+
+	GigaTimer(contectWithTimeout, int(findTimeDuration(BreakTime)), int(findTimeDuration(WorkTime)), int(DurOfPomidorka))
 
 }
