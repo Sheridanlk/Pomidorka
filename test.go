@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/eiannone/keyboard"
 )
 
-func GigaTimer(ctx context.Context, DurOfBreak int, DurOfWork int, DurOfPomidorka int) {
+func IntervalsCalculation(DurOfBreak, DurOfWork, DurOfPomidorka int) []time.Duration {
 	intervals := make([]time.Duration, 0)
 	numerOfIntervals := 0
 	for DurOfWork > 0 {
@@ -29,28 +31,49 @@ func GigaTimer(ctx context.Context, DurOfBreak int, DurOfWork int, DurOfPomidork
 		numerOfIntervals += 1
 	}
 
-	mainTimer := time.NewTimer(time.Duration(0) * time.Second)
-	secondTicker := time.NewTicker(1 * time.Second)
-	i := 0
-	numberOfSecons := time.Duration(0)
+	return intervals
+}
+
+func GigaTimer(ctx context.Context, intervals []time.Duration, isBreak bool, infChan chan<- []time.Duration) {
+	if isBreak {
+		fmt.Println("Break: ")
+	} else {
+		fmt.Println("Work: ")
+	}
+	isBreak = !isBreak
+	interval_number := 0
+	Timer := time.NewTimer(intervals[interval_number])
+	Ticker := time.NewTicker(1 * time.Second)
+
+	numberOfSecons := time.Duration(1)
 	for {
 		select {
-		case <-mainTimer.C:
-			if (i+1)%2 == 0 {
+		case <-Timer.C:
+			interval_number++
+			if interval_number >= len(intervals) {
+				fmt.Println("Time is end")
+				Ticker.Stop()
+				infChan <- nil
+				return
+			}
+			if isBreak {
 				fmt.Println("Break: ")
 			} else {
 				fmt.Println("Work: ")
 			}
-			mainTimer.Reset(intervals[i])
-			numberOfSecons = time.Duration(0)
-			i++
-		case <-secondTicker.C:
+			isBreak = !isBreak
+			Timer.Reset(intervals[interval_number])
+			numberOfSecons = time.Duration(1)
+
+		case <-Ticker.C:
 			passed := numberOfSecons * time.Second
-			fmt.Printf("%s / %s\n", passed, intervals[i-1])
+			fmt.Printf("%s / %s\n", passed, intervals[interval_number])
 			numberOfSecons++
 		case <-ctx.Done():
-			mainTimer.Stop()
-			secondTicker.Stop()
+			Timer.Stop()
+			Ticker.Stop()
+			intervals[interval_number] -= numberOfSecons * time.Second
+			infChan <- intervals[interval_number:]
 			return
 		}
 
@@ -65,7 +88,21 @@ func findTimeDuration(StringTime string) time.Duration {
 		return 0
 	}
 	return time
+}
 
+func KeyListener(cChan chan<- bool, errChan chan<- error) {
+	Pause := false
+	for {
+		_, key, err := keyboard.GetKey()
+		if err != nil {
+			errChan <- err
+			return
+		}
+		if key == keyboard.KeySpace {
+			Pause = !Pause
+			cChan <- Pause
+		}
+	}
 }
 
 func main() {
@@ -76,14 +113,58 @@ func main() {
 	fmt.Println("Set break time:")
 	fmt.Fscan(os.Stdin, &BreakTime)
 	const DurOfPomidorka time.Duration = 10 * time.Second
-	ctx := context.Background()
 
-	contectWithTimeout, cancelFunc := context.WithTimeout(ctx, findTimeDuration(WorkTime))
-	defer cancelFunc()
+	initalIntervals := IntervalsCalculation(int(findTimeDuration(BreakTime)), int(findTimeDuration(WorkTime)), int(DurOfPomidorka))
+	fmt.Println(initalIntervals)
 
-	// signalCtx, cancelFunc := signal.NotifyContext(ctx, os.Interrupt)
+	if err := keyboard.Open(); err != nil {
+		panic(err)
+	}
+	defer func() {
+		_ = keyboard.Close()
+	}()
+
+	chChan := make(chan bool, 1)
+	errChan := make(chan error, 1)
+	infChan := make(chan []time.Duration, 1)
+	var isBreak bool
+	Pause := false
+	flag := initalIntervals
+	go KeyListener(chChan, errChan)
+
+	for {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		isBreak = (len(initalIntervals)-len(flag))%2 != 0
+		if !Pause {
+			go GigaTimer(ctx, flag, isBreak, infChan)
+		}
+
+		select {
+		case Pause = <-chChan:
+			if Pause {
+				fmt.Println("Pause")
+				cancel()
+				flag = <-infChan
+				fmt.Println(flag)
+				if flag == nil {
+					return
+				}
+			} else {
+				fmt.Println("Play")
+				continue
+			}
+		case err := <-errChan:
+			fmt.Println(err)
+			return
+		case flag = <-infChan:
+			if flag == nil {
+				return
+			}
+		}
+	}
+
+	// contectWithTimeout, cancelFunc := context.WithTimeout(ctx, findTimeDuration(WorkTime))
 	// defer cancelFunc()
-
-	GigaTimer(contectWithTimeout, int(findTimeDuration(BreakTime)), int(findTimeDuration(WorkTime)), int(DurOfPomidorka))
 
 }
