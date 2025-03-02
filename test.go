@@ -132,10 +132,11 @@ func main() {
 	flag := initalIntervals
 	go KeyListener(chChan, errChan)
 
-	for {
+	for flag != nil {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		isBreak = (len(initalIntervals)-len(flag))%2 != 0
+
 		if !Pause {
 			go GigaTimer(ctx, flag, isBreak, infChan)
 		}
@@ -157,10 +158,6 @@ func main() {
 		case err := <-errChan:
 			fmt.Println(err)
 			return
-		case flag = <-infChan:
-			if flag == nil {
-				return
-			}
 		}
 	}
 
