@@ -107,6 +107,9 @@ func PomdoroTimer(ctx context.Context, intervals []time.Duration, brake bool) []
 			intervals[intervalNumber] -= numberOfSecons * time.Second
 			return intervals[intervalNumber:]
 
+		case err := <-errChan:
+			fmt.Println("Error: ", err)
+			return nil
 		}
 
 	}
